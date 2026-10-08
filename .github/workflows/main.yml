@@ -1,27 +1,3 @@
-name: CYBERPUNK SECURE RDP // PRIVAT_MODE
-
-on:
-  workflow_dispatch:
-    inputs:
-      tailscale_authkey:
-        description: 'ENTER TAILSCALE AUTHKEY [tskey-auth-...]'
-        required: true
-        type: string
-
-jobs:
-  cyberpunk_node:
-    runs-on: windows-latest
-    timeout-minutes: 360
-
-    steps:
-      - name: INITIALIZE SYSTEM PROTOCOL
-        shell: pwsh
-        run: |
-          Write-Host "==================================================" -ForegroundColor Cyan
-          Write-Host " [!] INITIALIZING SECURE CYBERPUNK NODE..." -ForegroundColor Green
-          Write-Host " [!] ENCRYPTION: ACTIVE | PRIVACY: MAXIMUM" -ForegroundColor Yellow
-          Write-Host "==================================================" -ForegroundColor Cyan
-
       - name: FETCH SECURE CREDENTIALS (STEALTH MODE)
         id: get_creds
         shell: pwsh
@@ -40,61 +16,20 @@ jobs:
               Write-Host "[!] Web fetch restricted, switching to secure local generation..." -ForegroundColor Yellow
           }
 
-          # Jika parsing gagal atau kosong, gunakan generator otomatis aman
           if ([string]::IsNullOrEmpty($username) -or [string]::IsNullOrEmpty($password)) {
-              $username = "NetRunner_" + (Get-Random -Minimum 1000 -Maximum 9999)
-              $password = "CyberpunkPass#" + (Get-Random -Minimum 100000 -Maximum 999999)
+              $username = "NetRunner" + (Get-Random -Minimum 100 -Maximum 999)
+              $password = "Cyber#" + (Get-Random -Minimum 1000 -Maximum 9999)
           }
 
-          # MASKING KREDENSIAL DI LOG GITHUB
+          # 1. Eksekusi pembuatan user SEBELUM di-masking agar tidak terbaca bintang (***)
+          net user $username $password /add
+          net localgroup administrators $username /add
+
+          # 2. Baru lakukan masking untuk keamanan log setelah user dibuat
           echo "::add-mask::$username"
           echo "::add-mask::$password"
           
           echo "USERNAME=$username" >> $env:GITHUB_OUTPUT
           echo "PASSWORD=$password" >> $env:GITHUB_OUTPUT
-
-          # Eksekusi pembuatan user lokal
-          net user $username $password /add
-          net localgroup administrators $username /add
           
           Write-Host "[+] SECURE USER PROFILE GENERATED & HIDDEN." -ForegroundColor Green
-
-      - name: OVERRIDE FIREWALL & ENABLE RDP
-        shell: pwsh
-        run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
-          Write-Host "[+] RDP PORT OPENED SECURELY." -ForegroundColor Green
-
-      - name: ESTABLISH TAILSCALE SECURE TUNNEL
-        shell: pwsh
-        run: |
-          Write-Host "[*] Deploying Tailscale Secure Network..." -ForegroundColor Yellow
-          winget install Tailscale.Tailscale --silent --accept-package-agreements --accept-source-agreements
-          Start-Sleep -s 5
-          
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="${{ github.event.inputs.tailscale_authkey }}" --unattended
-          Write-Host "[+] TAILSCALE TUNNEL ESTABLISHED SUCCESSFULLY!" -ForegroundColor Cyan
-
-      - name: CYBERPUNK STATUS DISPLAY (HIDDEN CREDENTIALS)
-        shell: pwsh
-        run: |
-          $tsIp = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-          
-          Write-Host ""
-          Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Magenta
-          Write-Host "║           SYSTEM STATUS: ONLINE [SECURE]       ║" -ForegroundColor Magenta
-          Write-Host "╠════════════════════════════════════════════════╣" -ForegroundColor Magenta
-          Write-Host "║ TAILSCALE IP  : $tsIp                  " -ForegroundColor White
-          Write-Host "║ RDP STATUS    : READY (Use Windows App)        ║" -ForegroundColor White
-          Write-Host "║ USERNAME      : [HIDDEN FOR PRIVACY]           ║" -ForegroundColor DarkGray
-          Write-Host "║ PASSWORD      : [ENCRYPTED / MASKED]           ║" -ForegroundColor DarkGray
-          Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Magenta
-          Write-Host " * Note: Anda bisa melihat username asli di bagian output langkah 'Fetch' jika diperlukan." -ForegroundColor Yellow
-
-      - name: KEEP ALIVE MATRIX
-        shell: pwsh
-        run: |
-          Write-Host "[*] Matrix connection active. Keeping node alive..." -ForegroundColor DarkCyan
-          while ($true) { Start-Sleep -s 60 }
