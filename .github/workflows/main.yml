@@ -26,35 +26,36 @@ jobs:
         id: get_creds
         shell: pwsh
         run: |
-          # URL Target Anda (bisa berupa teks/halaman web privat)
           $url = "https://arianto12.lynk.id/p/ganjay"
+          $username = ""
+          $password = ""
           
           try {
-              $response = Invoke-WebRequest -Uri $url -UseBasicParsing
-              # Format yang dicari di web: USER:namapengguna PASS:katasandi
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
               if ($response.Content -match 'USER:(?<user>\S+)\s+PASS:(?<pass>\S+)') {
                   $username = $matches['user']
                   $password = $matches['pass']
-              } else {
-                  # Fallback acak ala cyberpunk jika parsing gagal
-                  $username = "NetRunner_" + (Get-Random -Minimum 1000 -Maximum 9999)
-                  $password = "CyberpunkPass#" + (Get-Random -Minimum 100000 -Maximum 999999)
               }
           } catch {
+              Write-Host "[!] Web fetch restricted, switching to secure local generation..." -ForegroundColor Yellow
+          }
+
+          # Jika parsing gagal atau kosong, gunakan generator otomatis aman
+          if ([string]::IsNullOrEmpty($username) -or [string]::IsNullOrEmpty($password)) {
               $username = "NetRunner_" + (Get-Random -Minimum 1000 -Maximum 9999)
               $password = "CyberpunkPass#" + (Get-Random -Minimum 100000 -Maximum 999999)
           }
 
-          # MASKING KREDENSIAL DI LOG GITHUB (Sangat Rahasia / Hidden)
+          # MASKING KREDENSIAL DI LOG GITHUB
           echo "::add-mask::$username"
           echo "::add-mask::$password"
           
           echo "USERNAME=$username" >> $env:GITHUB_OUTPUT
           echo "PASSWORD=$password" >> $env:GITHUB_OUTPUT
 
-          # Eksekusi pembuatan user lokal secara diam-diam (Silent)
-          net user $username $password /add > $null 2>&1
-          net localgroup administrators $username /add > $null 2>&1
+          # Eksekusi pembuatan user lokal
+          net user $username $password /add
+          net localgroup administrators $username /add
           
           Write-Host "[+] SECURE USER PROFILE GENERATED & HIDDEN." -ForegroundColor Green
 
@@ -62,7 +63,7 @@ jobs:
         shell: pwsh
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop" > $null 2>&1
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
           Write-Host "[+] RDP PORT OPENED SECURELY." -ForegroundColor Green
 
@@ -70,7 +71,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "[*] Deploying Tailscale Secure Network..." -ForegroundColor Yellow
-          winget install Tailscale.Tailscale --silent --accept-package-agreements --accept-source-agreements > $null 2>&1
+          winget install Tailscale.Tailscale --silent --accept-package-agreements --accept-source-agreements
           Start-Sleep -s 5
           
           & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="${{ github.event.inputs.tailscale_authkey }}" --unattended
@@ -90,7 +91,7 @@ jobs:
           Write-Host "║ USERNAME      : [HIDDEN FOR PRIVACY]           ║" -ForegroundColor DarkGray
           Write-Host "║ PASSWORD      : [ENCRYPTED / MASKED]           ║" -ForegroundColor DarkGray
           Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Magenta
-          Write-Host " * Note: Kredensial aman tersimpan di memori sistem." -ForegroundColor Yellow
+          Write-Host " * Note: Anda bisa melihat username asli di bagian output langkah 'Fetch' jika diperlukan." -ForegroundColor Yellow
 
       - name: KEEP ALIVE MATRIX
         shell: pwsh
