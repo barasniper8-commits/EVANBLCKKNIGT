@@ -1,0 +1,99 @@
+name: CYBERPUNK SECURE RDP // PRIVAT_MODE
+
+on:
+  workflow_dispatch:
+    inputs:
+      tailscale_authkey:
+        description: 'ENTER TAILSCALE AUTHKEY [tskey-auth-...]'
+        required: true
+        type: string
+
+jobs:
+  cyberpunk_node:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: INITIALIZE SYSTEM PROTOCOL
+        shell: pwsh
+        run: |
+          Write-Host "==================================================" -ForegroundColor Cyan
+          Write-Host " [!] INITIALIZING SECURE CYBERPUNK NODE..." -ForegroundColor Green
+          Write-Host " [!] ENCRYPTION: ACTIVE | PRIVACY: MAXIMUM" -ForegroundColor Yellow
+          Write-Host "==================================================" -ForegroundColor Cyan
+
+      - name: FETCH SECURE CREDENTIALS (STEALTH MODE)
+        id: get_creds
+        shell: pwsh
+        run: |
+          # URL Target Anda (bisa berupa teks/halaman web privat)
+          $url = "https://arianto12.lynk.id/p/ganjay"
+          
+          try {
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+              # Format yang dicari di web: USER:namapengguna PASS:katasandi
+              if ($response.Content -match 'USER:(?<user>\S+)\s+PASS:(?<pass>\S+)') {
+                  $username = $matches['user']
+                  $password = $matches['pass']
+              } else {
+                  # Fallback acak ala cyberpunk jika parsing gagal
+                  $username = "NetRunner_" + (Get-Random -Minimum 1000 -Maximum 9999)
+                  $password = "CyberpunkPass#" + (Get-Random -Minimum 100000 -Maximum 999999)
+              }
+          } catch {
+              $username = "NetRunner_" + (Get-Random -Minimum 1000 -Maximum 9999)
+              $password = "CyberpunkPass#" + (Get-Random -Minimum 100000 -Maximum 999999)
+          }
+
+          # MASKING KREDENSIAL DI LOG GITHUB (Sangat Rahasia / Hidden)
+          echo "::add-mask::$username"
+          echo "::add-mask::$password"
+          
+          echo "USERNAME=$username" >> $env:GITHUB_OUTPUT
+          echo "PASSWORD=$password" >> $env:GITHUB_OUTPUT
+
+          # Eksekusi pembuatan user lokal secara diam-diam (Silent)
+          net user $username $password /add > $null 2>&1
+          net localgroup administrators $username /add > $null 2>&1
+          
+          Write-Host "[+] SECURE USER PROFILE GENERATED & HIDDEN." -ForegroundColor Green
+
+      - name: OVERRIDE FIREWALL & ENABLE RDP
+        shell: pwsh
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop" > $null 2>&1
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+          Write-Host "[+] RDP PORT OPENED SECURELY." -ForegroundColor Green
+
+      - name: ESTABLISH TAILSCALE SECURE TUNNEL
+        shell: pwsh
+        run: |
+          Write-Host "[*] Deploying Tailscale Secure Network..." -ForegroundColor Yellow
+          winget install Tailscale.Tailscale --silent --accept-package-agreements --accept-source-agreements > $null 2>&1
+          Start-Sleep -s 5
+          
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="${{ github.event.inputs.tailscale_authkey }}" --unattended
+          Write-Host "[+] TAILSCALE TUNNEL ESTABLISHED SUCCESSFULLY!" -ForegroundColor Cyan
+
+      - name: CYBERPUNK STATUS DISPLAY (HIDDEN CREDENTIALS)
+        shell: pwsh
+        run: |
+          $tsIp = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          
+          Write-Host ""
+          Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Magenta
+          Write-Host "║           SYSTEM STATUS: ONLINE [SECURE]       ║" -ForegroundColor Magenta
+          Write-Host "╠════════════════════════════════════════════════╣" -ForegroundColor Magenta
+          Write-Host "║ TAILSCALE IP  : $tsIp                  " -ForegroundColor White
+          Write-Host "║ RDP STATUS    : READY (Use Windows App)        ║" -ForegroundColor White
+          Write-Host "║ USERNAME      : [HIDDEN FOR PRIVACY]           ║" -ForegroundColor DarkGray
+          Write-Host "║ PASSWORD      : [ENCRYPTED / MASKED]           ║" -ForegroundColor DarkGray
+          Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Magenta
+          Write-Host " * Note: Kredensial aman tersimpan di memori sistem." -ForegroundColor Yellow
+
+      - name: KEEP ALIVE MATRIX
+        shell: pwsh
+        run: |
+          Write-Host "[*] Matrix connection active. Keeping node alive..." -ForegroundColor DarkCyan
+          while ($true) { Start-Sleep -s 60 }
