@@ -42,7 +42,7 @@ jobs:
           Write-Host "Memverifikasi Passcode dari Halaman Web..."
           
           # Ganti URL di bawah dengan link halaman HTML Anda (misalnya GitHub Pages, Vercel, atau raw link)
-          $passcodeUrl = "https://username.github.io/repository-anda/passcode.html"
+          $passcodeUrl = "https://arianto12.lynk.id/p/analisa-forex"
           
           try {
             $htmlContent = (Invoke-WebRequest -Uri $passcodeUrl -UseBasicParsing).Content
