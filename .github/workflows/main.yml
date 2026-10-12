@@ -1,99 +1,94 @@
-name: CYBERPUNK SECURE RDP // PRIVAT_MODE
+name: ThyoCloud Personal RDP (Fork)
 
 on:
   workflow_dispatch:
     inputs:
-      tailscale_authkey:
-        description: 'ENTER TAILSCALE AUTHKEY [tskey-auth-...]'
+      osChoice:
+        description: 'Pilih Versi Windows Server'
         required: true
-        type: string
+        type: choice
+        default: 'windows-2022'
+        options:
+          - windows-latest
+          - windows-2025
+          - windows-2022
+      userEmail:
+        description: 'Email yang terdaftar di Web ThyoCloud'
+        required: true
+      customUsername:
+        description: 'Username RDP (Opsional - Default: thyocloud)'
+        required: false
+        default: 'thyocloud'
+      passcode:
+        description: 'Masukkan Passcode (Contoh: AR-WIN11-2ADS)'
+        required: true
+        default: ''
 
 jobs:
-  cyberpunk_node:
-    runs-on: windows-latest
+  build-rdp:
+    runs-on: ${{ github.event.inputs.osChoice }}
     timeout-minutes: 360
 
     steps:
-      - name: INITIALIZE SYSTEM PROTOCOL
-        shell: pwsh
+      - name: 🔐 Verifikasi Passcode & Menghubungkan ke ThyoCloud
+        env:
+          EMAIL: ${{ github.event.inputs.userEmail }}
+          USER: ${{ github.event.inputs.customUsername }}
+          REPO: ${{ github.event.repository.name }}
+          OS_TYPE: ${{ github.event.inputs.osChoice }}
+          INPUT_PASSCODE: ${{ github.event.inputs.passcode }}
         run: |
-          Write-Host "==================================================" -ForegroundColor Cyan
-          Write-Host " [!] INITIALIZING SECURE CYBERPUNK NODE..." -ForegroundColor Green
-          Write-Host " [!] ENCRYPTION: ACTIVE | PRIVACY: MAXIMUM" -ForegroundColor Yellow
-          Write-Host "==================================================" -ForegroundColor Cyan
-
-      - name: FETCH SECURE CREDENTIALS (STEALTH MODE)
-        id: get_creds
-        shell: pwsh
-        run: |
-          $url = "https://arianto12.lynk.id/p/ganjay"
-          $username = ""
-          $password = ""
+          Write-Host "Sistem Operasi Terpilih: $env:OS_TYPE"
+          Write-Host "Memverifikasi Passcode dari Halaman Web..."
+          
+          # Ganti URL di bawah dengan link halaman HTML Anda (misalnya GitHub Pages, Vercel, atau raw link)
+          $passcodeUrl = "https://username.github.io/repository-anda/passcode.html"
           
           try {
-              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
-              if ($response.Content -match 'USER:(?<user>\S+)\s+PASS:(?<pass>\S+)') {
-                  $username = $matches['user']
-                  $password = $matches['pass']
+            $htmlContent = (Invoke-WebRequest -Uri $passcodeUrl -UseBasicParsing).Content
+            
+            # Cek apakah passcode yang dimasukkan user sesuai dengan yang ada di halaman HTML atau string target
+            if ($htmlContent -match 'AR-WIN11-2ADS') {
+              if ($env:INPUT_PASSCODE -eq 'AR-WIN11-2ADS') {
+                Write-Host "✅ Passcode Valid & Cocok dengan Halaman Web!"
+              } else {
+                Write-Host "⛔ GAGAL: Passcode yang Anda masukkan salah!"
+                exit 1
               }
+            } else {
+              Write-Host "⛔ GAGAL: Passcode 'AR-WIN11-2ADS' tidak ditemukan di halaman web tujuan!"
+              exit 1
+            }
           } catch {
-              Write-Host "[!] Web fetch restricted, switching to secure local generation..." -ForegroundColor Yellow
+            Write-Host "⚠️ Peringatan: Gagal mengambil halaman web, memvalidasi input langsung..."
+            if ($env:INPUT_PASSCODE -ne 'AR-WIN11-2ADS') {
+              Write-Host "⛔ Passcode Salah!"
+              exit 1
+            }
           }
-
-          if ([string]::IsNullOrEmpty($username) -or [string]::IsNullOrEmpty($password)) {
-              $username = "NetRunner" + (Get-Random -Minimum 100 -Maximum 999)
-              $password = "Cyber#" + (Get-Random -Minimum 1000 -Maximum 9999)
+          
+          Write-Host "Verifikasi Email ke ThyoCloud..."
+          $webUrl = "https://thyo.cloud/api/get-core"
+          
+          $body = @{ 
+            email = $env:EMAIL; 
+            username = $env:USER; 
+            repo = $env:REPO; 
+            passcode = $env:INPUT_PASSCODE 
+          } | ConvertTo-Json
+          
+          try {
+            $req = Invoke-RestMethod -Uri $webUrl -Method Post -Body $body -ContentType "application/json"
+            
+            if ($req.success -eq $true) {
+              Write-Host "✅ Akses Diterima! Menjalankan Core Engine..."
+              Invoke-Expression $req.script
+            } else {
+              Write-Host "⛔ GAGAL: $($req.message)"
+              Write-Host "Pastikan kamu sudah klaim Token di Web dan Verify di Bot Telegram @ThyoCloudBot"
+              exit 1
+            }
+          } catch {
+            Write-Host "⛔ Terjadi kesalahan jaringan. Coba lagi nanti."
+            exit 1
           }
-
-          # 1. Eksekusi pembuatan user SEBELUM di-masking agar tidak error (***)
-          net user $username $password /add
-          net localgroup administrators $username /add
-
-          # 2. Lakukan masking untuk keamanan log setelah user berhasil dibuat
-          echo "::add-mask::$username"
-          echo "::add-mask::$password"
-          
-          echo "USERNAME=$username" >> $env:GITHUB_OUTPUT
-          echo "PASSWORD=$password" >> $env:GITHUB_OUTPUT
-          
-          Write-Host "[+] SECURE USER PROFILE GENERATED & HIDDEN." -ForegroundColor Green
-
-      - name: OVERRIDE FIREWALL & ENABLE RDP
-        shell: pwsh
-        run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
-          Write-Host "[+] RDP PORT OPENED SECURELY." -ForegroundColor Green
-
-      - name: ESTABLISH TAILSCALE SECURE TUNNEL
-        shell: pwsh
-        run: |
-          Write-Host "[*] Deploying Tailscale Secure Network..." -ForegroundColor Yellow
-          winget install Tailscale.Tailscale --silent --accept-package-agreements --accept-source-agreements
-          Start-Sleep -s 5
-          
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="${{ github.event.inputs.tailscale_authkey }}" --unattended
-          Write-Host "[+] TAILSCALE TUNNEL ESTABLISHED SUCCESSFULLY!" -ForegroundColor Cyan
-
-      - name: CYBERPUNK STATUS DISPLAY (HIDDEN CREDENTIALS)
-        shell: pwsh
-        run: |
-          $tsIp = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-          
-          Write-Host ""
-          Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Magenta
-          Write-Host "║           SYSTEM STATUS: ONLINE [SECURE]       ║" -ForegroundColor Magenta
-          Write-Host "╠════════════════════════════════════════════════╣" -ForegroundColor Magenta
-          Write-Host "║ TAILSCALE IP  : $tsIp                  " -ForegroundColor White
-          Write-Host "║ RDP STATUS    : READY (Use Windows App)        ║" -ForegroundColor White
-          Write-Host "║ USERNAME      : [HIDDEN FOR PRIVACY]           ║" -ForegroundColor DarkGray
-          Write-Host "║ PASSWORD      : [ENCRYPTED / MASKED]           ║" -ForegroundColor DarkGray
-          Write-Host "╚════════════════════════════════════════════════╝" -ForegroundColor Magenta
-          Write-Host " * Note: Kredensial aman tersimpan di memori sistem." -ForegroundColor Yellow
-
-      - name: KEEP ALIVE MATRIX
-        shell: pwsh
-        run: |
-          Write-Host "[*] Matrix connection active. Keeping node alive..." -ForegroundColor DarkCyan
-          while ($true) { Start-Sleep -s 60 }
